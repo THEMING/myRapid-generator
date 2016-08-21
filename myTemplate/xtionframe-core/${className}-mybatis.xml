@@ -1,0 +1,120 @@
+<#include "/macro.include"/>
+<#include "/java_copyright.include">
+<#assign className = table.className>   
+<#assign classNameLower = className?uncap_first> 
+<?xml version="1.0" encoding="UTF-8"?> 
+ <!DOCTYPE mapper 
+ PUBLIC "-//ibatis.apache.org//DTD Mapper 3.0//EN" 
+ "http://ibatis.apache.org/dtd/ibatis-3-mapper.dtd">
+<mapper namespace="com.xuanwu.xtionframe.core.domain.${className}">
+
+	<insert id="insert" parameterType="${className}">
+		insert into ${table.sqlName}
+		<trim prefix="(" suffix=")" suffixOverrides=",">
+		<#list table.columns as column>
+			<if test="${column.columnNameFirstLower} != null">
+				${column.sqlName},
+			</if>
+        </#list>
+		</trim>
+		<trim prefix="values (" suffix=")" suffixOverrides=",">
+	    <#list table.columns as column>
+			<if test="${column.columnNameFirstLower} != null">
+				${r'#{'}${column.columnNameFirstLower}, jdbcType=${column.jdbcSqlTypeName}${r'},'}
+			</if>
+        </#list>
+		</trim>
+	</insert>
+
+	<update id="update" parameterType="${className}">
+		update ${table.sqlName}
+		<set>
+			<#list table.notPkColumns as column>
+			<if test="${column.columnNameFirstLower} != null">
+			  ${column.sqlName} = ${r'#{'}${column.columnNameFirstLower}, jdbcType=${column.jdbcSqlTypeName} ${r'}'},
+			</if>
+	        </#list>
+		</set>
+		where
+			id = <@mapperEl "id"/>
+	</update>
+	
+	<resultMap id="BaseResultMap" type="${className}">
+        <#list table.columns as column>
+		<#if column.pk>
+			<id property="${column.columnNameLower}" column="${column.sqlName}" jdbcType="${column.jdbcSqlTypeName}"/>
+		</#if>
+		<#if !column.pk>
+			<result property="${column.columnNameLower}" column="${column.sqlName}" jdbcType="${column.jdbcSqlTypeName}"/>
+		</#if>
+		</#list>
+	</resultMap>
+	
+	<!-- 用于select查询公用抽取的列 -->
+	<sql id="Base_Column_List">
+		<#list table.columns as column>${column.sqlName}<#if column_has_next>,</#if></#list>
+	</sql>
+
+	<select id="get" parameterType="map" resultMap="BaseResultMap">
+		select
+			<include refid="Base_Column_List" />
+		from
+			${table.sqlName}
+		where
+			id = <@mapperEl "id"/>
+	</select>
+
+	<delete id="remove" parameterType="map">
+		delete from ${table.sqlName} 
+		where
+			id = <@mapperEl "id"/>
+	</delete>
+	
+	<sql id="getListWhere">
+		<#list table.columns as column>
+			<if test="_bean != null and _bean.${column.columnNameFirstLower} != null">
+			  and ${column.sqlName} = ${r'#{'} _bean.${column.columnNameFirstLower}, jdbcType=${column.jdbcSqlTypeName} ${r'}'}
+			</if>
+		</#list>
+	</sql>
+
+	<select id="list" parameterType="map" resultType="map">
+	
+		select * from
+		(select ROW_NUMBER() over(
+		<if test="sortname!= null and sortname!= ''">
+			order by ${sortname}
+			<if test="sortorder!= null and sortorder!= ''"> ${sortorder} </if>
+			<if test="sortorder== null or sortorder== ''"> asc </if>
+			,userNumber
+		</if>
+		<if test="sortname== null or sortname== ''"> order by  id asc
+		</if>
+		) as rownumber,* from(
+		select 		
+		<include refid="Base_Column_List" />
+		from ${table.sqlName} 
+		<where>
+		<include refid="getListWhere" />
+		</where>
+		)B
+		)A where 1=1 
+		and rownumber > ${firstrow} and rownumber<![CDATA[ <= ]]>${lastrow}
+
+	</select>
+	
+	<select id="listCount" resultType="long" parameterType="map">
+		select 		
+		count(1)
+		from ${table.sqlName} 
+		<where>
+		<include refid="getListWhere" />
+		</where>
+	</select>
+	
+	<update id="setStatus" parameterType="map">
+		update ${table.sqlName} set status = #{status} where id=<@mapperEl "id"/>
+	</update>
+
+</mapper>
+
